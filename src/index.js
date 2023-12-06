@@ -205,10 +205,11 @@ function toggleView(url, name) {
 
   if (views[name]) {
     const windowView = win.getBrowserView();
-    if (windowView == views[name]) {
+    if (windowView && windowView == views[name]) {
       if (win.isVisible()) {
         win.hide();
       } else {
+        windowView.webContents.focus();
         win.show();
       }
       return;
@@ -276,6 +277,7 @@ function toggleView(url, name) {
   })
   win.setBrowserView(view);
   win.show();
+  view.webContents.focus();
   return;
 }
 
