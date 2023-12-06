@@ -44,7 +44,7 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient("popcorn");
 }
 
-app.on("open-url", (event, url) => {
+app.on("open-url", (_, url) => {
   const { protocol, hostname: name } = new URL(url);
   if (protocol !== "popcorn:") {
     toggleView(url, null)
@@ -176,6 +176,10 @@ const createWindow = () => {
   });
   win.setWindowButtonVisibility(false);
 
+  win.on("close", (event) => {
+    app.hide();
+  });
+
   win.on("blur", () => {
     app.hide();
   });
@@ -228,6 +232,7 @@ function toggleView(url, name) {
   const view = new BrowserView();
   contextMenu({
     window: view,
+    showInspectElement: true,
   })
   if (name) {
     views[name] = view;
