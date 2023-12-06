@@ -11,6 +11,7 @@ const {
   shell,
   BrowserView,
 } = require("electron");
+const contextMenu = require('electron-context-menu');
 const os = require("os");
 const path = require("path");
 const fs = require("fs");
@@ -225,6 +226,9 @@ function toggleView(url, name) {
   }
 
   const view = new BrowserView();
+  contextMenu({
+    window: view,
+  })
   if (name) {
     views[name] = view;
   }
@@ -395,6 +399,7 @@ function registerShortcuts() {
 app.on("ready", () => {
   createTray();
   registerShortcuts();
+  toggleView(config.apps[config.defaultApp].url, config.defaultApp)
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common

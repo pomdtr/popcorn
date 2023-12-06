@@ -19,6 +19,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "electron-context-menu": "^3.6.1",
     "electron-squirrel-startup": "^1.0.0"
   },
   "devDependencies": {
