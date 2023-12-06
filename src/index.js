@@ -208,27 +208,28 @@ function toggleView(url, name) {
     win.setBounds({ x, y, width, height });
   }
 
-  if (views[name]) {
-    const windowView = win.getBrowserView();
-    if (windowView && windowView == views[name]) {
-      if (win.isVisible()) {
-        win.hide();
-      } else {
-        windowView.webContents.focus();
-        win.show();
-      }
-      return;
-    }
+  const windowView = win.getBrowserView();
 
+  if (windowView && views[name] === windowView) {
+    if (win.isVisible()) {
+      win.hide();
+    } else {
+      windowView.webContents.focus();
+      win.show();
+    }
+    return;
+  }
+
+  if (views[name]) {
     const view = views[name];
     view.setBounds({ x: 0, y: 0, width, height });
     win.setBrowserView(view);
-
     view.webContents.focus();
     win.show();
     return;
   }
 
+  // create new view
   const view = new BrowserView();
   contextMenu({
     window: view,
