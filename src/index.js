@@ -7,9 +7,9 @@ const {
   screen,
   dialog,
   globalShortcut,
+  nativeTheme,
   shell,
   BrowserView,
-  nativeTheme,
 } = require("electron");
 const os = require("os");
 const path = require("path");
@@ -44,19 +44,19 @@ if (process.defaultApp) {
 }
 
 app.on("open-url", (event, url) => {
-  const { protocol, hostname } = new URL(url);
+  const { protocol, hostname: name } = new URL(url);
   if (protocol !== "popcorn:") {
     toggleView(url, null)
     return;
   }
 
-  const popcornApp = config.apps[hostname];
+  const popcornApp = config.apps[name];
   if (!popcornApp) {
-    dialog.showErrorBox("Error", `App not found: ${hostname}`);
+    dialog.showErrorBox("Error", `App not found: ${name}`);
     return;
   }
 
-  toggleView(popcornApp.url, popcornApp.name);
+  toggleView(popcornApp.url, name);
 });
 
 function findConfig() {
@@ -94,6 +94,10 @@ function getAccelerator(shortcut) {
   }
   const parts = [];
   for (const modifier of shortcut.modifiers) {
+    if (modifier == "hyper") {
+      parts.push("Shift", "Control", "Alt", "Command");
+    }
+
     if (modifier == "ctrl") {
       parts.push("Control");
     }
@@ -156,7 +160,7 @@ const createWindow = () => {
     y,
     width,
     height,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#000" : "#fff",
+    transparent: true,
     hiddenInMissionControl: true,
     frame: false,
     alwaysOnTop: true,
@@ -225,22 +229,67 @@ function toggleView(url, name) {
   }
   view.setBounds({ x: 0, y: 0, width, height });
   view.webContents.loadURL(url).then(() => { win.show(); })
+  view.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") {
+      return;
+    }
+
+    if (!input.meta) {
+      return;
+    }
+
+    switch (input.key) {
+      case "[":
+        event.preventDefault();
+        view.webContents.goBack();
+        break;
+      case "]":
+        event.preventDefault();
+        view.webContents.goForward();
+        break;
+      case ",":
+        event.preventDefault();
+        editConfig();
+        break;
+      case "r":
+        event.preventDefault();
+        view.webContents.reload();
+        break;
+      case "Escape":
+        event.preventDefault();
+        view.webContents.goToIndex(0);
+        break;
+    }
+  });
+  const updateBackgroundColors = () => {
+    view.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#000" : "#fff");
+  }
+  updateBackgroundColors();
+  nativeTheme.on("updated", updateBackgroundColors);
   view.webContents.on("destroyed", () => {
     delete views[name];
+    nativeTheme.removeListener("updated", updateBackgroundColors);
     const win = BrowserWindow.getAllWindows()[0];
     if (win) {
-      win.hide();
+      win.close();
     }
   })
-
-
   win.setBrowserView(view);
   win.show();
   return;
 }
 
+function editConfig() {
+  const configPath = findConfig();
+  shell.openPath(configPath);
+}
+
+let tray;
 function createTray() {
-  const tray = new Tray(
+  if (tray) {
+    tray.destroy();
+  }
+  tray = new Tray(
     path.join(
       __dirname,
       "..",
@@ -264,9 +313,8 @@ function createTray() {
     },
     {
       label: "Edit Config",
-      click: () => {
-        shell.openPath(findConfig());
-      }
+      click: editConfig,
+      accelerator: "Cmd+,"
     },
     {
       label: "Reload Config",
@@ -274,6 +322,7 @@ function createTray() {
         try {
           config = loadConfig(findConfig());
           registerShortcuts();
+          createTray();
         } catch (e) {
           dialog.showErrorBox("Error", e.message);
         }
@@ -296,8 +345,38 @@ function createTray() {
   tray.setContextMenu(contextMenu);
 }
 
+function toggleWindow(win) {
+  if (win.isVisible()) {
+    win.hide();
+  } else {
+    win.show();
+  }
+}
+
 function registerShortcuts() {
   globalShortcut.unregisterAll();
+  const accelerator = getAccelerator(config.shortcut);
+  if (!accelerator) {
+    dialog.showErrorBox("Error", "No shortcut configured");
+    return;
+  }
+
+  console.debug(`Registering global shortcut: ${accelerator}`);
+  globalShortcut.register(accelerator, () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      toggleWindow(win);
+      return
+    }
+    const defaultApp = config.apps[config.defaultApp];
+    if (!defaultApp) {
+      dialog.showErrorBox("Error", "No default app configured");
+      return;
+    }
+
+    toggleView(defaultApp.url, config.defaultApp);
+  });
+
   for (const [name, popcornApp] of Object.entries(config.apps)) {
     const accelerator = getAccelerator(popcornApp.shortcut);
     if (!accelerator) {
@@ -312,7 +391,6 @@ function registerShortcuts() {
 }
 
 app.on("ready", () => {
-  createWindow();
   createTray();
   registerShortcuts();
 });
